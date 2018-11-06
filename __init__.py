@@ -20,6 +20,8 @@ IO_MAPPING = [27,23,22,17]  # BCM
 # 15    22
 # 11    17
 
+def log(message):
+    logging.info("ENERGENIE_ACTOR: {m}".format(m=message))
 
 def EnableConsoleDebugLogging():
     logging.basicConfig(level=logging.DEBUG)
@@ -27,15 +29,19 @@ def EnableConsoleDebugLogging():
 def action(code):
     i=3
     for bit in list(reversed(code)):
-        logging.debug("Setting Pin {n} to {b} (bit={r})".format(n=IO_MAPPING[i], b=(bit=='1'), r=bit))
+        log("Setting Pin {n} to {b} (bit={r})".format(n=IO_MAPPING[i], b=(bit=='1'), r=bit))
         GPIO.output(IO_MAPPING[i], bit=='1')
         i-=1
     time.sleep(0.1)
-    logging.debug("Firing...")
+    log("Firing...")
     GPIO.output(25, True)
     time.sleep(0.25)
-    logging.debug("Stopping...")
+    log("Stopping...")
     GPIO.output(25, False)
+
+def output_switch_state(number, state):
+    with open("logs/energenie_switch_state_{i}".format(i=number), 'w') as out:
+        out.write(str(state))
 
 class Switch(object):
     def __init__(self, number, oncode, offcode):
@@ -44,17 +50,19 @@ class Switch(object):
         self.offcode = offcode
 
     def turn_on(self):
-        logging.debug("Turning ON switch {n} with code {c}".format(c=self.oncode, n=self.number))
+        log("Turning ON switch {n} with code {c}".format(c=self.oncode, n=self.number))
         action(self.oncode)
-        logging.debug("Complete")
+        output_switch_state(self.number, 1)
+        log("Complete")
 
     def turn_off(self):
-        logging.debug("Turning OFF switch {n} with code {c}".format(c=self.offcode, n=self.number))
+        log("Turning OFF switch {n} with code {c}".format(c=self.offcode, n=self.number))
         action(self.offcode)
-        logging.debug("Complete")
+        output_switch_state(self.number, 0)
+        log("Complete")
 
 def initialise_board():
-    logging.debug("Initialising...")
+    log("Initialising...")
     GPIO.setmode(GPIO.BCM)
     for o in IO_MAPPING:
         GPIO.setup(o, GPIO.OUT)
@@ -71,21 +79,21 @@ def initialise_board():
         GPIO.output(o, False)
 
 def load_switch_definitions():
-    logging.debug("Creating dictionary of switches")
+    log("Creating dictionary of switches")
     global SWITCHES
     SWITCHES[1] = Switch(1, '1111', '0111')
     SWITCHES[2] = Switch(2, '1110', '0110')
     SWITCHES[3] = Switch(3, '1101', '0101')
     SWITCHES[4] = Switch(4, '1100', '0100')
     SWITCHES[0] = Switch('ALL', '1011', '0011')
-    logging.debug("Ready")
+    log("Ready")
 
 def switch(number, on, off):
     if on and off:
-        logging.error("Cannot switch both on and off")
+        log("ERROR - Cannot switch both on and off")
         return False
     if not on and not off:
-        logging.error("Nothing to do: on and off both false")
+        log("ERROR - Nothing to do: on and off both false")
         return False
     if on:
         SWITCHES[number].turn_on()
@@ -93,7 +101,7 @@ def switch(number, on, off):
         SWITCHES[number].turn_off()
 
 def setup_switch(number):
-    logging.debug("Setting up switch {n}".format(n=number))
+    log("Setting up switch {n}".format(n=number))
     switch(number, True, False)
     time.sleep(0.25)
     switch(number, False, True)
